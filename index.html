@@ -1,54 +1,275 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
   <meta charset="utf-8">
-  <title>ToH Trail-Schnitzeljagd</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <title>ToH Schnitzelmap</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    body { margin: 0; padding: 0; height: 100%; }
-    html, #map { height: 100%; width: 100%; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 0; height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+    html, body { height: 100%; }
+    #map { height: 100%; width: 100%; }
+
+    #progress-bar {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      z-index: 1001;
+      background: rgba(30, 30, 30, 0.92);
+      color: #fff;
+      padding: 8px 12px 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.85rem;
+      backdrop-filter: blur(6px);
+    }
+    #progress-bar .bar-track {
+      flex: 1;
+      height: 8px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    #progress-bar .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4CAF50, #8BC34A);
+      border-radius: 4px;
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+    #progress-bar .label { white-space: nowrap; font-weight: 600; min-width: 48px; }
+
     #controls {
       position: absolute;
-      top: 10px;
+      bottom: 20px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(255,255,255,0.95);
-      padding: 0.5em;
-      border-radius: 8px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      background: rgba(255,255,255,0.96);
+      padding: 10px 14px;
+      border-radius: 14px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
       z-index: 1000;
       display: flex;
-      gap: 6px;
-      flex-wrap: wrap;
+      gap: 8px;
       align-items: center;
+      max-width: calc(100% - 32px);
+      backdrop-filter: blur(6px);
     }
-    #code { font-size: 1rem; padding: 6px 8px; min-width: 12ch; }
-    #unlock { font-size: 1rem; padding: 6px 10px; }
+    #code {
+      font-size: 1rem;
+      padding: 10px 12px;
+      min-width: 0;
+      flex: 1;
+      border: 2px solid #ddd;
+      border-radius: 10px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    #code:focus { border-color: #4CAF50; }
+    #unlock {
+      font-size: 1rem;
+      padding: 10px 18px;
+      background: #4CAF50;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+    #unlock:active { background: #388E3C; }
+
+    #gps-btn {
+      position: absolute;
+      bottom: 90px;
+      right: 16px;
+      z-index: 1000;
+      width: 44px;
+      height: 44px;
+      background: #fff;
+      border: none;
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      transition: background 0.2s;
+    }
+    #gps-btn:active { background: #e0e0e0; }
+    #gps-btn.active { background: #E3F2FD; }
+
+    #legend {
+      position: absolute;
+      top: 52px;
+      right: 12px;
+      z-index: 1000;
+      background: rgba(255,255,255,0.95);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 0.75rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      display: none;
+      backdrop-filter: blur(6px);
+    }
+    #legend.open { display: block; }
+    #legend .item { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+    #legend .dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+
+    #legend-btn {
+      position: absolute;
+      top: 52px;
+      right: 12px;
+      z-index: 1001;
+      width: 36px;
+      height: 36px;
+      background: rgba(255,255,255,0.95);
+      border: none;
+      border-radius: 50%;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      cursor: pointer;
+      font-size: 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .toast {
+      position: fixed;
+      top: 60px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      background: #333;
+      color: #fff;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      z-index: 2000;
+      opacity: 0;
+      transition: opacity 0.3s, transform 0.3s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.error { background: #D32F2F; }
+    .toast.success { background: #388E3C; }
+
+    .leaflet-popup-content-wrapper { border-radius: 12px; }
+    .leaflet-popup-content { margin: 12px 16px; }
+
+    .custom-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 3px solid #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      color: #fff;
+      font-size: 14px;
+      font-weight: bold;
+    }
+    .cat-star { background: #FF9800; }
+    .cat-bike { background: #4CAF50; }
+    .cat-key { background: #2196F3; }
+    .cat-finish { background: #F44336; }
+
+    .user-marker {
+      width: 18px;
+      height: 18px;
+      background: #4285F4;
+      border: 3px solid #fff;
+      border-radius: 50%;
+      box-shadow: 0 0 0 2px rgba(66,133,244,0.3), 0 2px 6px rgba(0,0,0,0.3);
+      animation: pulse-ring 2s ease-out infinite;
+    }
+    @keyframes pulse-ring {
+      0% { box-shadow: 0 0 0 2px rgba(66,133,244,0.4), 0 2px 6px rgba(0,0,0,0.3); }
+      70% { box-shadow: 0 0 0 16px rgba(66,133,244,0), 0 2px 6px rgba(0,0,0,0.3); }
+      100% { box-shadow: 0 0 0 2px rgba(66,133,244,0.4), 0 2px 6px rgba(0,0,0,0.3); }
+    }
+
+    @media (max-width: 480px) {
+      #controls { bottom: 12px; padding: 8px 10px; border-radius: 12px; }
+      #code { padding: 8px 10px; font-size: 0.95rem; }
+      #unlock { padding: 8px 14px; font-size: 0.95rem; }
+      #progress-bar { font-size: 0.8rem; padding: 6px 10px 8px; }
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
+
+  <div id="progress-bar">
+    <span class="label" id="progress-label">0 / 22</span>
+    <div class="bar-track"><div class="bar-fill" id="progress-fill"></div></div>
+  </div>
+
+  <button id="legend-btn" title="Legende">ℹ️</button>
+  <div id="legend">
+    <div class="item"><div class="dot" style="background:#FF9800"></div> Station</div>
+    <div class="item"><div class="dot" style="background:#4CAF50"></div> Bike-Trail</div>
+    <div class="item"><div class="dot" style="background:#2196F3"></div> Wegpunkt</div>
+    <div class="item"><div class="dot" style="background:#F44336"></div> Ziel</div>
+  </div>
+
+  <button id="gps-btn" title="Mein Standort">📍</button>
+
   <div id="controls">
     <input type="text" id="code" placeholder="Code eingeben" autocomplete="off" inputmode="text">
     <button id="unlock">Go</button>
   </div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <div class="toast" id="toast"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    var map = L.map('map', { zoomControl: true, dragging: true, tap: false });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+    var STORAGE_KEY = 'schnitzelmap_unlocked';
+
+    function getCategory(name) {
+      if (name.startsWith('🏁')) return 'finish';
+      if (name.startsWith('🚲')) return 'bike';
+      if (name.startsWith('🔑')) return 'key';
+      return 'star';
+    }
+
+    function getCategoryLabel(cat) {
+      return { star: 'Station', bike: 'Bike-Trail', key: 'Wegpunkt', finish: 'Ziel' }[cat] || cat;
+    }
+
+    function createIcon(category) {
+      var cls = 'cat-' + category;
+      var symbols = { star: '★', bike: '🚲', key: '🔑', finish: '🏁' };
+      return L.divIcon({
+        className: '',
+        html: '<div class="custom-marker ' + cls + '">' + (symbols[category] || '★') + '</div>',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+        popupAnchor: [0, -18]
+      });
+    }
+
+    var map = L.map('map', { zoomControl: false, dragging: true, tap: false });
+    L.control.zoom({ position: 'bottomleft' }).addTo(map);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+      maxZoom: 19,
+      crossOrigin: true
+    }).addTo(map);
 
     var stations = [
       { name: '⭐️Ohrenklinge', lat: 49.125601, lng: 9.734056, code: '22', info: 'Startpunkt des ersten Trails, spektakuläre Aussicht!' },
       { name: '⭐️Anlagencafe Zwischenstop', lat: 49.106461, lng: 9.740300, code: '7', info: '.' },
-      { name: '⭐️Einstieg J&H2', lat: 49.129148, lng: 9.691586, code: 'steil', info: '.' },
+      { name: '⭐️Einstieg J&H2', lat: 49.128298, lng: 9.694716, code: 'steil', info: '.' },
       { name: '🚲Vollkorn', lat: 49.090857, lng: 9.780048, code: 'Fun', info: 'have fun.' },
       { name: '🚲Urkorn', lat: 49.090518, lng: 9.775142, code: '130', info: 'Fahrt den Trail, der Uphill führt euch zur nächsten Station.' },
       { name: '🔑Stadtumfahrung', lat: 49.105769, lng: 9.739037, code: 'Heimweg', info: '.' },
       { name: '🔑St.Michael', lat: 49.112473, lng: 9.737403, code: 'Nachmittag', info: 'Zähl die Stufen, so erscheint dir der nächste Pin!' },
       { name: '🚲Jekyll&Hyde 1', lat: 49.126726, lng: 9.693267, code: 'geil', info: 'anspruchsvoller, etwas steiler.' },
-      { name: '🚲Jekyll&Hyde 2', lat: 49.129225, lng: 9.691277, code: 'Genuss', info: 'zweiter Teil zum Einstig für weniger erfahrene Biker .' },
+      { name: '🚲Jekyll&Hyde 2', lat: 49.129225, lng: 9.691277, code: 'Genuss', info: 'zweiter Teil zum Einstig für weniger erfahrene Biker.' },
       { name: '⭐️Blockhuette', lat: 49.116959, lng: 9.688252, code: 'baden', info: 'Druck oder kein Druck, das ist die Frage.' },
       { name: '🚲Ernie&Bert', lat: 49.125299, lng: 9.686787, code: 'Ernie', info: '.' },
       { name: '🚲Popkorn', lat: 49.092628, lng: 9.789011, code: '1000', info: 'have fun.' },
@@ -64,14 +285,53 @@
       { name: '🔑Kocherbrücke', lat: 49.102215, lng: 9.747990, code: 'Change', info: '.' }
     ];
 
-    var markers = stations.map(function(station) {
-      var marker = L.marker([station.lat, station.lng]);
-      marker.bindPopup('<b>' + station.name + '</b><br>' + station.info);
-      return { station: station, marker: marker, code: String(station.code).toUpperCase() };
+    var saved = {};
+    try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch(e) {}
+
+    var markers = stations.map(function(station, idx) {
+      var cat = getCategory(station.name);
+      var icon = createIcon(cat);
+      var marker = L.marker([station.lat, station.lng], { icon: icon });
+      marker.bindPopup(
+        '<div style="font-size:0.9rem"><b>' + station.name + '</b><br>' +
+        '<span style="color:#888;font-size:0.8rem">' + getCategoryLabel(cat) + '</span><br>' +
+        station.info + '</div>'
+      );
+      return { station: station, marker: marker, code: String(station.code).toUpperCase(), cat: cat, idx: idx };
     });
 
-    var bounds = L.latLngBounds(stations.map(function(s){ return [s.lat, s.lng]; }));
-    if (bounds.isValid()) map.fitBounds(bounds, { padding: [40,40] });
+    var unlockedCount = 0;
+
+    function updateProgress() {
+      unlockedCount = markers.filter(function(m) { return map.hasLayer(m.marker); }).length;
+      var total = markers.length;
+      document.getElementById('progress-label').textContent = unlockedCount + ' / ' + total;
+      document.getElementById('progress-fill').style.width = (unlockedCount / total * 100) + '%';
+
+      var codes = {};
+      markers.forEach(function(m) { if (map.hasLayer(m.marker)) codes[m.idx] = true; });
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(codes)); } catch(e) {}
+    }
+
+    markers.forEach(function(m) {
+      if (saved[m.idx]) {
+        m.marker.addTo(map);
+      }
+    });
+
+    updateProgress();
+
+    var bounds = L.latLngBounds(stations.map(function(s) { return [s.lat, s.lng]; }));
+    if (bounds.isValid()) map.fitBounds(bounds, { padding: [60, 40] });
+
+    var toastTimer;
+    function showToast(msg, type) {
+      var el = document.getElementById('toast');
+      el.textContent = msg;
+      el.className = 'toast ' + (type || '') + ' show';
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(function() { el.className = 'toast'; }, 2500);
+    }
 
     function addMarkerForCode(input) {
       var norm = String(input || '').trim().toUpperCase();
@@ -83,16 +343,87 @@
           unlocked = true;
         }
       });
+      if (unlocked) updateProgress();
       return unlocked;
     }
 
     var inputEl = document.getElementById('code');
-    document.getElementById('unlock').addEventListener('click', function(){
-      var val = inputEl.value; if (!val) return;
-      if (!addMarkerForCode(val)) alert('Falscher Code!');
-      inputEl.select();
+    document.getElementById('unlock').addEventListener('click', function() {
+      var val = inputEl.value;
+      if (!val) return;
+      if (!addMarkerForCode(val)) {
+        showToast('Falscher Code!', 'error');
+      } else {
+        showToast('Station freigeschaltet!', 'success');
+      }
+      inputEl.value = '';
+      inputEl.focus();
     });
-    inputEl.addEventListener('keydown', function(e){ if (e.key === 'Enter') document.getElementById('unlock').click(); });
+    inputEl.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') document.getElementById('unlock').click();
+    });
+
+    var userMarker = null;
+    var watchId = null;
+    var gpsBtn = document.getElementById('gps-btn');
+
+    gpsBtn.addEventListener('click', function() {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        if (userMarker) { map.removeLayer(userMarker); userMarker = null; }
+        gpsBtn.classList.remove('active');
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        showToast('Geolocation nicht verfügbar', 'error');
+        return;
+      }
+
+      gpsBtn.classList.add('active');
+      showToast('Suche Standort...', '');
+
+      watchId = navigator.geolocation.watchPosition(
+        function(pos) {
+          var latlng = [pos.coords.latitude, pos.coords.longitude];
+          if (!userMarker) {
+            userMarker = L.marker(latlng, {
+              icon: L.divIcon({
+                className: '',
+                html: '<div class="user-marker"></div>',
+                iconSize: [18, 18],
+                iconAnchor: [9, 9]
+              })
+            }).addTo(map);
+            userMarker.bindPopup('<b>Dein Standort</b>');
+            map.setView(latlng, Math.max(map.getZoom(), 15));
+            showToast('Standort gefunden!', 'success');
+          } else {
+            userMarker.setLatLng(latlng);
+          }
+        },
+        function(err) {
+          showToast('Standort nicht verfügbar', 'error');
+          gpsBtn.classList.remove('active');
+          watchId = null;
+        },
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+      );
+    });
+
+    document.getElementById('legend-btn').addEventListener('click', function() {
+      var legend = document.getElementById('legend');
+      legend.classList.toggle('open');
+    });
+
+    document.addEventListener('click', function(e) {
+      var legend = document.getElementById('legend');
+      var btn = document.getElementById('legend-btn');
+      if (!legend.contains(e.target) && e.target !== btn) {
+        legend.classList.remove('open');
+      }
+    });
   </script>
 </body>
 </html>
