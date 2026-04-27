@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ToH Trail-Schnitzeljagd</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body { margin: 0; padding: 0; height: 100%; }
+    html, #map { height: 100%; width: 100%; }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.95);
+      padding: 0.5em;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+      z-index: 1000;
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    #code { font-size: 1rem; padding: 6px 8px; min-width: 12ch; }
+    #unlock { font-size: 1rem; padding: 6px 10px; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="controls">
+    <input type="text" id="code" placeholder="Code eingeben" autocomplete="off" inputmode="text">
+    <button id="unlock">Go</button>
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    var map = L.map('map', { zoomControl: true, dragging: true, tap: false });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(map);
+
+    var stations = [
+      { name: '⭐️Ohrenklinge', lat: 49.125601, lng: 9.734056, code: '22', info: 'Startpunkt des ersten Trails, spektakuläre Aussicht!' },
+      { name: '⭐️Anlagencafe Zwischenstop', lat: 49.106461, lng: 9.740300, code: '7', info: '.' },
+      { name: '⭐️Einstieg J&H2', lat: 49.129148, lng: 9.691586, code: 'steil', info: '.' },
+      { name: '🚲Vollkorn', lat: 49.090857, lng: 9.780048, code: 'Fun', info: 'have fun.' },
+      { name: '🚲Urkorn', lat: 49.090518, lng: 9.775142, code: '130', info: 'Fahrt den Trail, der Uphill führt euch zur nächsten Station.' },
+      { name: '🔑Stadtumfahrung', lat: 49.105769, lng: 9.739037, code: 'Heimweg', info: '.' },
+      { name: '🔑St.Michael', lat: 49.112473, lng: 9.737403, code: 'Nachmittag', info: 'Zähl die Stufen, so erscheint dir der nächste Pin!' },
+      { name: '🚲Jekyll&Hyde 1', lat: 49.126726, lng: 9.693267, code: 'geil', info: 'anspruchsvoller, etwas steiler.' },
+      { name: '🚲Jekyll&Hyde 2', lat: 49.129225, lng: 9.691277, code: 'Genuss', info: 'zweiter Teil zum Einstig für weniger erfahrene Biker .' },
+      { name: '⭐️Blockhuette', lat: 49.116959, lng: 9.688252, code: 'baden', info: 'Druck oder kein Druck, das ist die Frage.' },
+      { name: '🚲Ernie&Bert', lat: 49.125299, lng: 9.686787, code: 'Ernie', info: '.' },
+      { name: '🚲Popkorn', lat: 49.092628, lng: 9.789011, code: '1000', info: 'have fun.' },
+      { name: '⭐️Funkturm', lat: 49.115639, lng: 9.728946, code: '54', info: 'Heißer Kreisel.' },
+      { name: '⭐️Parkplatz EK', lat: 49.090989, lng: 9.781542, code: '600', info: 'Eieiei.' },
+      { name: '⭐️Verkehrsuebung', lat: 49.103968, lng: 9.742813, code: 'Start', info: 'Fahrrad tausch.' },
+      { name: '🏁Anlagencafe', lat: 49.106605, lng: 9.740286, code: 'Endspurt', info: 'Start/Ziel.' },
+      { name: '🔑B14', lat: 49.107643, lng: 9.712437, code: 'Hyde', info: 'Wichtiger Orientierungspunkt.' },
+      { name: '🔑Breiteichsee', lat: 49.119938, lng: 9.707352, code: 'See', info: 'See mit schöner Umgebung.' },
+      { name: '⭐️Heimbacherhof', lat: 49.107553, lng: 9.717018, code: 'Jump', info: 'Laufrad lauf!.' },
+      { name: '🔑Pumptrack', lat: 49.088029, lng: 9.758528, code: 'Kocher', info: '.' },
+      { name: '🔑Alte Einkornstraße', lat: 49.091627, lng: 9.772508, code: 'Einkorn', info: 'keine Gnade für die Wade.' },
+      { name: '🔑Kocherbrücke', lat: 49.102215, lng: 9.747990, code: 'Change', info: '.' }
+    ];
+
+    var markers = stations.map(function(station) {
+      var marker = L.marker([station.lat, station.lng]);
+      marker.bindPopup('<b>' + station.name + '</b><br>' + station.info);
+      return { station: station, marker: marker, code: String(station.code).toUpperCase() };
+    });
+
+    var bounds = L.latLngBounds(stations.map(function(s){ return [s.lat, s.lng]; }));
+    if (bounds.isValid()) map.fitBounds(bounds, { padding: [40,40] });
+
+    function addMarkerForCode(input) {
+      var norm = String(input || '').trim().toUpperCase();
+      var unlocked = false;
+      markers.forEach(function(m) {
+        if (m.code === norm && !map.hasLayer(m.marker)) {
+          m.marker.addTo(map).openPopup();
+          map.setView([m.station.lat, m.station.lng], Math.max(map.getZoom(), 15));
+          unlocked = true;
+        }
+      });
+      return unlocked;
+    }
+
+    var inputEl = document.getElementById('code');
+    document.getElementById('unlock').addEventListener('click', function(){
+      var val = inputEl.value; if (!val) return;
+      if (!addMarkerForCode(val)) alert('Falscher Code!');
+      inputEl.select();
+    });
+    inputEl.addEventListener('keydown', function(e){ if (e.key === 'Enter') document.getElementById('unlock').click(); });
+  </script>
+</body>
+</html>
